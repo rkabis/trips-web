@@ -3,6 +3,56 @@ import React, { ReactElement } from 'react'
 import { makeStyles } from '@material-ui/core/styles'
 import Button from '@material-ui/core/Button'
 import TextField from '@material-ui/core/TextField'
+import CircularProgress from '@material-ui/core/CircularProgress'
+import Typography from '@material-ui/core/Typography'
+
+import CustomTable from '../components/CustomTable'
+
+import gql from 'graphql-tag'
+import { useLazyQuery } from '@apollo/react-hooks'
+
+const query = gql`
+  query get_trip_log(
+    $dateFilter: DateFilterInput
+    $orderBy: [OrderByInput]
+    $first: Int
+    $or: [SearchInput]
+    $filter: [SearchInput]!
+  ) {
+    get_trip_log(
+      dateFilter: $dateFilter
+      filter: $filter
+      or: $or
+      first: $first
+      orderBy: $orderBy
+    ) {
+      id
+      device_id
+      device_alias
+      plateno
+      datestamp
+      gps_received
+      gps_delay
+      alert_codes
+      alert_ids
+      alert_msgs
+      direction
+      fuel_reading
+      temperature
+      group_ids
+      group_names
+      location {
+        lat
+        lon
+      }
+      odometer_reading
+      speed
+      created
+      modified
+      creator
+    }
+  }
+`
 
 const useStyles = makeStyles((theme) => ({
   root: {
@@ -26,6 +76,9 @@ const useStyles = makeStyles((theme) => ({
   },
   button: {
     marginTop: theme.spacing(1)
+  },
+  results: {
+    marginTop: theme.spacing(2)
   }
 }))
 
@@ -34,6 +87,23 @@ const Home = (): ReactElement => {
   const [from, setFrom] = React.useState('')
   const [to, setTo] = React.useState('')
   const classes = useStyles()
+
+  const [getLogs, { data, loading, error }] = useLazyQuery(query, {
+    variables: {
+      'dateFilter': {
+        'field': 'datestamp',
+        'gte': from,
+        'lte': to
+      },
+      'orderBy': { 'field': 'datestamp', 'direction': 'asc' },
+      'first': 1000,
+      'or': [
+        { 'field': 'alert_msgs', 'value': 'Left' },
+        { 'field': 'alert_msgs', 'value': 'Entered' }
+      ],
+      'filter': [{ 'field': 'device_id', 'value': id }]
+    }
+  })
 
   const handleChangeId = (event: React.ChangeEvent<HTMLInputElement>): void => {
     setId(event.target.value)
@@ -48,7 +118,7 @@ const Home = (): ReactElement => {
   }
 
   const handleClick = (): void => {
-    console.log(id,from,to)
+    getLogs()
   }
 
   const isDisabled = !id || !from || !to
@@ -78,7 +148,7 @@ const Home = (): ReactElement => {
         />
       </div>
       <TextField
-        label={'Device ID'}
+        label={'Device ID (ex. 16936)'}
         value={id}
         onChange={handleChangeId}
       />
@@ -90,6 +160,17 @@ const Home = (): ReactElement => {
       >
         {'SEARCH LOGS'}
       </Button>
+      <div className={classes.results}>
+        {
+          loading && <CircularProgress />
+        }
+        {
+          error && <Typography>{'Error'}</Typography>
+        }
+        {
+          data && <CustomTable data={data} />
+        }
+      </div>
     </div>
   )
 }
